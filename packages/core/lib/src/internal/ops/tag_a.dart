@@ -15,16 +15,17 @@ class TagA {
 
           return styles;
         },
-        onTree: (meta, tree) {
-          if (meta.willBuildSubtree == true) return;
-
+        onTreeFlattening: (meta, tree) {
           final onTap = _gestureTapCallback(meta);
-          if (onTap == null) return;
+          if (onTap == null) {
+            return;
+          }
 
           for (final bit in tree.bits.toList(growable: false)) {
             if (bit is WidgetBit) {
               bit.child.wrapWith(
-                  (_, child) => wf.buildGestureDetector(meta, child, onTap));
+                (_, child) => wf.buildGestureDetector(meta, child, onTap),
+              );
             } else if (bit is! WhitespaceBit) {
               _TagABit(bit.parent, bit.tsb, onTap).insertAfter(bit);
             }
@@ -32,10 +33,15 @@ class TagA {
         },
         onWidgets: (meta, widgets) {
           final onTap = _gestureTapCallback(meta);
-          if (onTap == null) return widgets;
+          if (onTap == null) {
+            return widgets;
+          }
 
-          return listOrNull(wf.buildColumnPlaceholder(meta, widgets)?.wrapWith(
-              (_, child) => wf.buildGestureDetector(meta, child, onTap)));
+          return listOrNull(
+            wf.buildColumnPlaceholder(meta, widgets)?.wrapWith(
+                  (_, child) => wf.buildGestureDetector(meta, child, onTap),
+                ),
+          );
         },
         onWidgetsIsOptional: true,
       );
@@ -51,7 +57,7 @@ class TagA {
 class _TagABit extends BuildBit<GestureRecognizer?, GestureRecognizer> {
   final GestureTapCallback onTap;
 
-  _TagABit(BuildTree? parent, TextStyleBuilder tsb, this.onTap)
+  const _TagABit(BuildTree? parent, TextStyleBuilder tsb, this.onTap)
       : super(parent, tsb);
 
   @override

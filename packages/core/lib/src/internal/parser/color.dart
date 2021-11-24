@@ -3,7 +3,9 @@ part of '../core_parser.dart';
 const kCssColor = 'color';
 
 Color? tryParseColor(css.Expression? expression) {
-  if (expression == null) return null;
+  if (expression == null) {
+    return null;
+  }
 
   if (expression is css.FunctionTerm) {
     switch (expression.text) {
@@ -15,7 +17,7 @@ Color? tryParseColor(css.Expression? expression) {
           final h = param0 is css.NumberTerm
               ? _parseColorHue(param0.number)
               : param0 is css.AngleTerm
-                  ? _parseColorHue(param0.value, param0.unit)
+                  ? _parseColorHue(param0.angle, param0.unit)
                   : null;
           final param1 = params[1];
           final s = param1 is css.PercentageTerm
@@ -66,7 +68,7 @@ Color? tryParseColor(css.Expression? expression) {
     switch (expression.valueAsString) {
       // TODO: add support for `currentcolor`
       case 'transparent':
-        return Color(0x00000000);
+        return const Color(0x00000000);
     }
   }
 

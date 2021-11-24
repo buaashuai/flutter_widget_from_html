@@ -11,9 +11,11 @@ import '../core_helpers.dart';
 import '../core_widget_factory.dart';
 import 'core_ops.dart';
 
-final _regExpSpaceLeading = RegExp(r'^[^\S\u{00A0}]+', unicode: true);
-final _regExpSpaceTrailing = RegExp(r'[^\S\u{00A0}]+$', unicode: true);
-final _regExpSpaces = RegExp(r'[^\S\u{00A0}]+', unicode: true);
+// https://infra.spec.whatwg.org/#ascii-whitespace
+const _asciiWhitespace = r'[\u{0009}\u{000A}\u{000C}\u{000D}\u{0020}]';
+final _regExpSpaceLeading = RegExp('^$_asciiWhitespace+', unicode: true);
+final _regExpSpaceTrailing = RegExp('$_asciiWhitespace+\$', unicode: true);
+final _regExpSpaces = RegExp('$_asciiWhitespace+', unicode: true);
 
 class BuildMetadata extends core_data.BuildMetadata {
   final Iterable<BuildOp> _parentOps;
@@ -22,11 +24,12 @@ class BuildMetadata extends core_data.BuildMetadata {
   var _buildOpsIsLocked = false;
   List<css.Declaration>? _styles;
   var _stylesIsLocked = false;
-  bool? _willBuildSubtree;
 
-  BuildMetadata(dom.Element element, TextStyleBuilder tsb,
-      [this._parentOps = const []])
-      : super(element, tsb);
+  BuildMetadata(
+    dom.Element element,
+    TextStyleBuilder tsb, [
+    this._parentOps = const [],
+  ]) : super(element, tsb);
 
   @override
   Iterable<BuildOp> get buildOps => _buildOps ?? const [];
@@ -41,10 +44,7 @@ class BuildMetadata extends core_data.BuildMetadata {
   }
 
   @override
-  bool? get willBuildSubtree => _willBuildSubtree;
-
-  @override
-  operator []=(String key, String value) {
+  void operator []=(String key, String value) {
     assert(!_stylesIsLocked, 'Metadata can no longer be changed.');
     final styleSheet = css.parse('*{$key: $value;}');
     _styles ??= [];
@@ -78,10 +78,13 @@ class BuildTree extends core_data.BuildTree {
     required this.wf,
   }) : super(parent, tsb);
 
-  @override
-  T add<T extends BuildBit>(T bit) {
-    assert(_built.isEmpty, "Built tree shouldn't be altered.");
-    return super.add(bit);
+  Iterable<BuildTree> get _subTrees sync* {
+    for (final child in directChildren) {
+      if (child is BuildTree) {
+        yield child;
+        yield* child._subTrees;
+      }
+    }
   }
 
   void addBitsFromNodes(dom.NodeList domNodes) {
@@ -95,7 +98,13 @@ class BuildTree extends core_data.BuildTree {
 
   @override
   Iterable<WidgetPlaceholder> build() {
-    if (_built.isNotEmpty) return _built;
+    if (_built.isNotEmpty) {
+      return _built;
+    }
+
+    for (final subTree in _subTrees.toList(growable: false).reversed) {
+      subTree._onFlattening();
+    }
 
     var widgets = wf.flatten(parentMeta, this);
     for (final op in parentMeta.buildOps) {
@@ -104,6 +113,28 @@ class BuildTree extends core_data.BuildTree {
               ?.map(WidgetPlaceholder.lazy)
               .toList(growable: false) ??
           widgets;
+    }
+
+    final thisAnchors = anchors;
+    if (thisAnchors != null) {
+      var needsColumn = false;
+      for (final widget in widgets) {
+        if (widget.anchors == null) {
+          // the current tree has some anchors
+          // but at least one of its widgets doesn't self-announce
+          // we need a column to wrap things and announce up the chain
+          needsColumn = true;
+          break;
+        }
+      }
+
+      if (needsColumn) {
+        widgets = listOrNull(
+              wf.buildColumnPlaceholder(parentMeta, widgets)
+                ?..setAnchorsIfUnset(thisAnchors),
+            ) ??
+            const [];
+      }
     }
 
     _built.addAll(widgets);
@@ -128,8 +159,13 @@ class BuildTree extends core_data.BuildTree {
       );
 
   void _addBitsFromNode(dom.Node domNode) {
-    if (domNode.nodeType == dom.Node.TEXT_NODE) return _addText(domNode.text!);
-    if (domNode.nodeType != dom.Node.ELEMENT_NODE) return;
+    if (domNode.nodeType == dom.Node.TEXT_NODE) {
+      final text = domNode as dom.Text;
+      return _addText(text.data);
+    }
+    if (domNode.nodeType != dom.Node.ELEMENT_NODE) {
+      return;
+    }
 
     final element = domNode as dom.Element;
     final customWidget = customWidgetBuilder?.call(element);
@@ -151,7 +187,7 @@ class BuildTree extends core_data.BuildTree {
 
     subTree.addBitsFromNodes(element.nodes);
 
-    if (meta.willBuildSubtree == true) {
+    if (meta._buildOps?.where(_opRequiresBuildingSubtree).isNotEmpty == true) {
       for (final widget in subTree.build()) {
         add(WidgetBit.block(this, widget));
       }
@@ -166,17 +202,44 @@ class BuildTree extends core_data.BuildTree {
     final end = trailing == null ? data.length : trailing.start;
 
     if (end <= start) {
-      addWhitespace();
+      // the string contains all spaces
+      addWhitespace(data);
       return;
     }
 
-    if (start > 0) addWhitespace();
+    if (start > 0) {
+      addWhitespace(leading!.group(0)!);
+    }
 
-    final substring = data.substring(start, end);
-    final dedup = substring.replaceAll(_regExpSpaces, ' ');
-    addText(dedup);
+    final contents = data.substring(start, end);
+    final spaces = _regExpSpaces.allMatches(contents);
+    var offset = 0;
+    for (final space in [...spaces, null]) {
+      if (space == null) {
+        // reaches end of string
+        final text = contents.substring(offset);
+        if (text.isNotEmpty) {
+          addText(text);
+        }
+        break;
+      } else {
+        final spaceData = space.group(0)!;
+        if (spaceData == ' ') {
+          // micro optimization: ignore single space (ASCII 32)
+          continue;
+        }
 
-    if (end < data.length) addWhitespace();
+        final text = contents.substring(offset, space.start);
+        addText(text);
+
+        addWhitespace(spaceData);
+        offset = space.end;
+      }
+    }
+
+    if (end < data.length) {
+      addWhitespace(trailing!.group(0)!);
+    }
   }
 
   void _collectMetadata(BuildMetadata meta) {
@@ -189,7 +252,9 @@ class BuildTree extends core_data.BuildTree {
     // stylings, step 1: get default styles from tag-based build ops
     for (final op in meta.buildOps) {
       final map = op.defaultStyles?.call(meta.element);
-      if (map == null) continue;
+      if (map == null) {
+        continue;
+      }
 
       final str = map.entries.map((e) => '${e.key}: ${e.value}').join(';');
       final styleSheet = css.parse('*{$str}');
@@ -213,23 +278,31 @@ class BuildTree extends core_data.BuildTree {
 
     wf.parseStyleDisplay(meta, meta[kCssDisplay]?.term);
 
-    meta._willBuildSubtree = meta[kCssDisplay]?.term == kCssDisplayBlock ||
-        meta._buildOps?.where(_opRequiresBuildingSubtree).isNotEmpty == true;
     meta._buildOpsIsLocked = true;
   }
 
   void _customStylesBuilder(BuildMetadata meta) {
     final map = customStylesBuilder?.call(meta.element);
-    if (map == null) return;
+    if (map == null) {
+      return;
+    }
 
     for (final pair in map.entries) {
       meta[pair.key] = pair.value;
     }
   }
+
+  void _onFlattening() {
+    for (final op in parentMeta.buildOps) {
+      op.onTreeFlattening?.call(parentMeta, this);
+    }
+  }
 }
 
 int _compareBuildOps(BuildOp a, BuildOp b) {
-  if (identical(a, b)) return 0;
+  if (identical(a, b)) {
+    return 0;
+  }
 
   final cmp = a.priority.compareTo(b.priority);
   if (cmp == 0) {

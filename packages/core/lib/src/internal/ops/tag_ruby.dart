@@ -15,17 +15,19 @@ class TagRuby {
     op = BuildOp(onChild: onChild, onTree: onTree);
     _rtOp = BuildOp(
       onTree: (rtMeta, rtTree) {
-        if (rtTree.isEmpty) return;
-        final rtBit =
-            _RtBit(rtTree, rtTree.tsb, rtMeta, rtTree.copyWith() as BuildTree);
-        rtTree.replaceWith(rtBit);
+        if (rtTree.isEmpty) {
+          return;
+        }
+        rtTree.isRtBit = true;
       },
     );
   }
 
   void onChild(BuildMetadata childMeta) {
     final e = childMeta.element;
-    if (e.parent != rubyMeta.element) return;
+    if (e.parent != rubyMeta.element) {
+      return;
+    }
 
     switch (e.localName) {
       case kTagRp:
@@ -41,33 +43,45 @@ class TagRuby {
 
   void onTree(BuildMetadata _, BuildTree tree) {
     final rubyBits = <BuildBit>[];
-    for (final bit in tree.bits.toList(growable: false)) {
-      if (rubyBits.isEmpty && bit is WhitespaceBit) {
-        // the first bit is whitespace, just ignore it
-        continue;
-      }
-      if (bit is! _RtBit || rubyBits.isEmpty) {
-        rubyBits.add(bit);
+
+    for (final bit in tree.directChildren.toList(growable: false)) {
+      if (!bit.isRtBit || rubyBits.isEmpty) {
+        if (rubyBits.isEmpty && bit is WhitespaceBit) {
+          // ruby contents should not start with a whitespace
+          bit.copyWith(parent: tree.parent).insertBefore(tree);
+          bit.detach();
+        } else {
+          rubyBits.add(bit);
+        }
         continue;
       }
 
       final rtBit = bit;
-      final rtTree = rtBit.tree;
+      final rtTree = rtBit as BuildTree;
       final rubyTree = tree.sub();
       final placeholder = WidgetPlaceholder<List<BuildTree>>([rubyTree, rtTree])
         ..wrapWith((context, __) {
           final tsh = rubyTree.tsb.build(context);
 
           final ruby = wf.buildColumnWidget(
-              rubyMeta, tsh, rubyTree.build().toList(growable: false));
+            context,
+            rubyTree.build().toList(growable: false),
+            dir: tsh.getDependency(),
+          );
           final rt = wf.buildColumnWidget(
-              rtBit.meta, tsh, rtTree.build().toList(growable: false));
+            context,
+            rtTree.build().toList(growable: false),
+            dir: tsh.getDependency(),
+          );
 
-          return HtmlRuby(ruby ?? widget0, rt ?? widget0);
+          return HtmlRuby(ruby, rt);
         });
 
-      final anchor = rubyBits.first;
-      WidgetBit.inline(anchor.parent!, placeholder).insertBefore(anchor);
+      WidgetBit.inline(
+        tree.parent!,
+        placeholder,
+        alignment: PlaceholderAlignment.baseline,
+      ).insertBefore(tree);
 
       for (final rubyBit in rubyBits) {
         rubyTree.add(rubyBit.copyWith(parent: rubyTree));
@@ -79,17 +93,9 @@ class TagRuby {
   }
 }
 
-class _RtBit extends BuildBit<Null, BuildTree> {
-  final BuildMetadata meta;
-  final BuildTree tree;
+extension _RtBit on BuildBit {
+  static final _rtBits = Expando<bool>();
 
-  _RtBit(BuildTree parent, TextStyleBuilder tsb, this.meta, this.tree)
-      : super(parent, tsb);
-
-  @override
-  BuildTree buildBit(Null _) => tree;
-
-  @override
-  BuildBit copyWith({BuildTree? parent, TextStyleBuilder? tsb}) =>
-      _RtBit(parent ?? this.parent!, tsb ?? this.tsb, meta, tree);
+  bool get isRtBit => _rtBits[this] == true;
+  set isRtBit(bool v) => _rtBits[this] = v;
 }

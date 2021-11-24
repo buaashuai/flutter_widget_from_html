@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,58 +5,52 @@ import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart
 import 'package:flutter_widget_from_html_core/src/internal/tsh_widget.dart';
 
 const kColor = Color(0xFF001234);
-const kColorAccent = Color(0xFF123456);
+const kColorPrimary = Color(0xFF123456);
 
 // https://stackoverflow.com/questions/6018611/smallest-data-uri-image-possible-for-a-transparent-image
-const kDataUri =
-    'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const kDataBase64 = 'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+const kDataUri = 'data:image/gif;base64,$kDataBase64';
 
+// TODO: switch to GlobalKey<HtmlWidgetState> when backward compatibility allows
 final hwKey = GlobalKey<State<HtmlWidget>>();
 
 const kGoldenFilePrefix = '../../../demo_app/test';
 
-Widget? buildCurrentState() {
-  final hws = hwKey.currentState;
-  if (hws == null) return null;
+Widget? buildCurrentState({GlobalKey? key}) {
+  final hws = (key ?? hwKey).currentState;
+  if (hws == null) {
+    return null;
+  }
 
   // ignore: invalid_use_of_protected_member
   return hws.build(hws.context);
 }
 
-Future<Widget> buildFutureBuilder(
-  FutureBuilder<Widget> fb, {
-  bool withData = true,
-}) async {
-  final hws = hwKey.currentState;
-  if (hws == null) return Future.value(null);
-
-  final data = await fb.future!;
-  final snapshot = withData
-      ? AsyncSnapshot.withData(ConnectionState.done, data)
-      : AsyncSnapshot<Widget>.nothing();
-  return fb.builder(hws.context, snapshot);
-}
-
 Future<String> explain(
   WidgetTester tester,
   String? html, {
-  bool buildFutureBuilderWithData = true,
   String? Function(Explainer, Widget)? explainer,
   Widget? hw,
+  GlobalKey? key,
   bool rtl = false,
   TextStyle? textStyle,
   bool useExplainer = true,
 }) async {
   assert((html == null) != (hw == null));
+  key ??= hwKey;
   hw ??= HtmlWidget(
     html!,
-    key: hwKey,
+    key: key,
     textStyle: textStyle,
   );
 
+  final ThemeData theme = ThemeData();
+
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData(accentColor: kColorAccent),
+      theme: theme.copyWith(
+        colorScheme: theme.colorScheme.copyWith(primary: kColorPrimary),
+      ),
       home: Scaffold(
         body: ExcludeSemantics(
           // exclude semantics for faster run but mostly because of this bug
@@ -82,61 +75,74 @@ Future<String> explain(
   );
 
   return explainWithoutPumping(
-    buildFutureBuilderWithData: buildFutureBuilderWithData,
     explainer: explainer,
+    key: key,
     useExplainer: useExplainer,
   );
 }
 
 Future<String> explainWithoutPumping({
-  bool buildFutureBuilderWithData = true,
   String? Function(Explainer, Widget)? explainer,
+  GlobalKey? key,
   bool useExplainer = true,
 }) async {
+  key ??= hwKey;
   if (!useExplainer) {
     final sb = StringBuffer();
-    hwKey.currentContext?.visitChildElements(
-        (e) => sb.writeln(e.toDiagnosticsNode().toStringDeep()));
+    key.currentContext?.visitChildElements(
+      (e) => sb.writeln(e.toDiagnosticsNode().toStringDeep()),
+    );
     var str = sb.toString();
     str = str.replaceAll(RegExp(r': [A-Z][A-Za-z]+\.'), ': '); // enums
     str = str.replaceAll(RegExp(r'State#\w+'), 'State'); // states
 
     // dependencies
     str = str.replaceAll(RegExp(r'\[GlobalKey#[0-9a-f]+\]'), '');
+    str = str.replaceAllMapped(
+      RegExp(r'\[GlobalKey#[0-9a-f]+ (\w+)\]'),
+      (m) => '[GlobalKey ${m.group(1)!}]',
+    );
     str = str.replaceAll(RegExp(r'(, )?dependencies: \[[^\]]+\]'), '');
 
     // image state
     str = str.replaceAll(
-        RegExp(r'ImageStream#[0-9a-f]+\([^\)]+\)'), 'ImageStream');
+      RegExp(r'ImageStream#[0-9a-f]+\([^\)]+\)'),
+      'ImageStream',
+    );
     str = str.replaceAll(
-        RegExp(r'(, )?state: _ImageState#[0-9a-f]+\([^\)]+\)'), '');
+      RegExp(r'(, )?state: _ImageState#[0-9a-f]+\([^\)]+\)'),
+      '',
+    );
 
     // simplify complicated widgets
     str = str.replaceAll(RegExp(r'Focus\(.+\)\n'), 'Focus(...)\n');
     str = str.replaceAll(RegExp(r'Listener\(.+\)\n'), 'Listener(...)\n');
     str = str.replaceAll(
-        RegExp(r'RawGestureDetector\(.+\)\n'), 'RawGestureDetector(...)\n');
+      RegExp(r'RawGestureDetector\(.+\)\n'),
+      'RawGestureDetector(...)\n',
+    );
     str = str.replaceAll(RegExp(r'Semantics\(.+\)\n'), 'Semantics(...)\n');
 
     // trim boring properties
     str =
-        str.replaceAll(RegExp(r'(, )?(this.)?excludeFromSemantics: false'), '');
-    str = str.replaceAll(RegExp(r'(, )?clipBehavior: none'), '');
-    str = str.replaceAll(RegExp(r'(, )?crossAxisAlignment: start'), '');
-    str = str.replaceAll(RegExp(r'(, )?direction: vertical'), '');
-    str = str.replaceAll(RegExp(r'(, )?filterQuality: low'), '');
-    str = str.replaceAll(RegExp(r'(, )?frameBuilder: null'), '');
-    str = str.replaceAll(RegExp(r'(, )?image: null'), '');
-    str = str.replaceAll(RegExp(r'(, )?invertColors: false'), '');
-    str = str.replaceAll(RegExp(r'(, )?loadingBuilder: null'), '');
-    str = str.replaceAll(RegExp(r'(, )?mainAxisAlignment: start'), '');
-    str = str.replaceAll(RegExp(r'(, )?mainAxisSize: min'), '');
-    str = str.replaceAll(RegExp(r'(, )?maxLines: unlimited'), '');
+        str.replaceAll(RegExp('(, )?(this.)?excludeFromSemantics: false'), '');
+    str = str.replaceAll(RegExp('(, )?clipBehavior: none'), '');
+    str = str.replaceAll(RegExp('(, )?crossAxisAlignment: start'), '');
+    str = str.replaceAll(RegExp('(, )?direction: vertical'), '');
+    str = str.replaceAll(RegExp('(, )?filterQuality: low'), '');
+    str = str.replaceAll(RegExp('(, )?frameBuilder: null'), '');
+    str = str.replaceAll(RegExp('(, )?image: null'), '');
+    str = str.replaceAll(RegExp('(, )?invertColors: false'), '');
+    str = str.replaceAll(RegExp('(, )?loadingBuilder: null'), '');
+    str = str.replaceAll(RegExp('(, )?mainAxisAlignment: start'), '');
+    str = str.replaceAll(RegExp('(, )?mainAxisSize: min'), '');
+    str = str.replaceAll(RegExp('(, )?maxLines: unlimited'), '');
     str = str.replaceAll(
-        RegExp(r'(, )?renderObject: \w+#[a-z0-9]+( relayoutBoundary=\w+)?'),
-        '');
+      RegExp(r'(, )?renderObject: \w+#[a-z0-9]+( relayoutBoundary=\w+)?'),
+      '',
+    );
     str = str.replaceAll(RegExp(r'(, )?softWrap: [a-z\s]+'), '');
-    str = str.replaceAll(RegExp(r'(, )?textDirection: ltr+'), '');
+    str = str.replaceAll(RegExp('(, )?textDirection: ltr+'), '');
 
     // delete leading comma (because of property trimmings)
     str = str.replaceAll('(, ', '(');
@@ -144,32 +150,24 @@ Future<String> explainWithoutPumping({
     return str;
   }
 
-  var built = buildCurrentState();
-  if (built == null) return 'null';
-
-  var isFutureBuilder = false;
-  if (built is FutureBuilder<Widget>) {
-    built = await buildFutureBuilder(
-      built,
-      withData: buildFutureBuilderWithData,
-    );
-    isFutureBuilder = true;
+  final built = buildCurrentState(key: key);
+  if (built == null) {
+    return 'null';
   }
 
-  var explained = Explainer(
-    hwKey.currentContext!,
+  return Explainer(
+    key.currentContext!,
     explainer: explainer,
   ).explain(built);
-  if (isFutureBuilder) explained = '[FutureBuilder:$explained]';
-
-  return explained;
 }
 
-final _explainMarginRegExp = RegExp(r'^\[Column:(dir=rtl,)?children='
-    r'\[RichText:(dir=rtl,)?\(:x\)\],'
-    r'(.+),'
-    r'\[RichText:(dir=rtl,)?\(:x\)\]'
-    r'\]$');
+final _explainMarginRegExp = RegExp(
+  r'^\[Column:(dir=rtl,)?children='
+  r'\[RichText:(dir=rtl,)?\(:x\)\],'
+  '(.+),'
+  r'\[RichText:(dir=rtl,)?\(:x\)\]'
+  r'\]$',
+);
 
 Future<String> explainMargin(
   WidgetTester tester,
@@ -200,18 +198,14 @@ String simplifyHashCode(String str) {
   });
 }
 
+Finder findText(String data) => _RichTextFinder(data);
+
 Future<int> tapText(WidgetTester tester, String data) async {
-  final candidates = find.byType(RichText).evaluate();
   var tapped = 0;
-  for (final candidate in candidates) {
-    final richText = candidate.widget as RichText;
-    final text = richText.text;
-    if (text is TextSpan) {
-      if (text.text == data) {
-        await tester.tap(find.byWidget(richText));
-        tapped++;
-      }
-    }
+
+  for (final candidate in findText(data).evaluate()) {
+    await tester.tap(find.byWidget(candidate.widget));
+    tapped++;
   }
 
   return tapped;
@@ -231,12 +225,28 @@ class Explainer {
       ? 'alignment=${a.toString().replaceFirst('Alignment.', '')}'
       : '';
 
+  String _borderRadius(BorderRadius r) {
+    final values = <double>[
+      r.topLeft.x,
+      r.topLeft.y,
+      r.topRight.x,
+      r.topRight.y,
+      r.bottomRight.x,
+      r.bottomRight.y,
+      r.bottomLeft.x,
+      r.bottomLeft.y,
+    ];
+    return '$values';
+  }
+
   String _borderSide(BorderSide s) => s != BorderSide.none
       ? "${s.width}@${s.style.toString().replaceFirst('BorderStyle.', '')}${_color(s.color)}"
       : 'none';
 
   String _boxBorder(BoxBorder? b) {
-    if (b == null) return '';
+    if (b == null) {
+      return '';
+    }
 
     final top = _borderSide(b.top);
     final right = b is Border ? _borderSide(b.right) : 'none';
@@ -258,10 +268,19 @@ class Explainer {
 
     if (d is BoxDecoration) {
       final color = d.color;
-      if (color != null) attr.add('bg=${_color(color)}');
+      if (color != null) {
+        attr.add('bg=${_color(color)}');
+      }
 
       final border = d.border;
-      if (border != null) attr.add('border=${_boxBorder(border)}');
+      if (border != null) {
+        attr.add('border=${_boxBorder(border)}');
+      }
+
+      final borderRadius = d.borderRadius;
+      if (borderRadius != null && borderRadius is BorderRadius) {
+        attr.add('radius=${_borderRadius(borderRadius)}');
+      }
     }
 
     return attr;
@@ -278,13 +297,25 @@ class Explainer {
   List<String> _cssSizing(CssSizing w) {
     final attr = <String>[];
 
-    if (w.minHeight != null) attr.add('height≥${w.minHeight}');
-    if (w.maxHeight != null) attr.add('height≤${w.maxHeight}');
-    if (w.preferredHeight != null) attr.add('height=${w.preferredHeight}');
+    if (w.minHeight != null) {
+      attr.add('height≥${w.minHeight}');
+    }
+    if (w.maxHeight != null) {
+      attr.add('height≤${w.maxHeight}');
+    }
+    if (w.preferredHeight != null) {
+      attr.add('height=${w.preferredHeight}');
+    }
 
-    if (w.minWidth != null) attr.add('width≥${w.minWidth}');
-    if (w.maxWidth != null) attr.add('width≤${w.maxWidth}');
-    if (w.preferredWidth != null) attr.add('width=${w.preferredWidth}');
+    if (w.minWidth != null) {
+      attr.add('width≥${w.minWidth}');
+    }
+    if (w.maxWidth != null) {
+      attr.add('width≤${w.maxWidth}');
+    }
+    if (w.preferredWidth != null) {
+      attr.add('width=${w.preferredWidth}');
+    }
 
     return attr;
   }
@@ -299,11 +330,15 @@ class Explainer {
 
     buffer.write('image=${image.image}');
 
-    if (image.height != null) buffer.write(',height=${image.height}');
+    if (image.height != null) {
+      buffer.write(',height=${image.height}');
+    }
     if (image.semanticLabel != null) {
       buffer.write(',semanticLabel=${image.semanticLabel}');
     }
-    if (image.width != null) buffer.write(',width=${image.width}');
+    if (image.width != null) {
+      buffer.write(',width=${image.width}');
+    }
 
     return '[Image:$buffer]';
   }
@@ -324,15 +359,19 @@ class Explainer {
     final text = textSpan?.text ?? '';
     final children = textSpan?.children
             ?.map((c) => _inlineSpan(c, parentStyle: textSpan.style))
-            .join('') ??
+            .join() ??
         '';
 
     final recognizerSb = StringBuffer();
     if (textSpan?.recognizer != null) {
       final recognizer = textSpan!.recognizer;
       if (recognizer is TapGestureRecognizer) {
-        if (recognizer.onTap != null) recognizerSb.write('+onTap');
-        if (recognizer.onTapCancel != null) recognizerSb.write('+onTapCancel');
+        if (recognizer.onTap != null) {
+          recognizerSb.write('+onTap');
+        }
+        if (recognizer.onTapCancel != null) {
+          recognizerSb.write('+onTapCancel');
+        }
       }
 
       if (recognizerSb.isEmpty) {
@@ -344,20 +383,39 @@ class Explainer {
     return '($style$recognizerSb:$text$children)';
   }
 
+  String _key(Key key) {
+    final matches =
+        RegExp(r'^\[GlobalKey#[^ ]+ (.+)\]$').firstMatch(key.toString());
+    if (matches == null) {
+      return '';
+    }
+
+    return '#${matches.group(1)}';
+  }
+
   String _limitBox(LimitedBox box) => 'h=${box.maxHeight},w=${box.maxWidth}';
 
   String _sizedBox(SizedBox box) {
     var clazz = box.runtimeType.toString();
     var size = '${box.width?.toStringAsFixed(1) ?? 0.0}x'
         '${box.height?.toStringAsFixed(1) ?? 0.0}';
-    if (size == 'InfinityxInfinity') {
-      clazz = 'SizedBox.expand';
-      size = '';
+    switch (size) {
+      case '0.0x0.0':
+        if (box.width == 0.0 && box.height == 0.0) {
+          clazz = 'SizedBox.shrink';
+        }
+        size = '';
+        break;
+      case 'InfinityxInfinity':
+        clazz = 'SizedBox.expand';
+        size = '';
+        break;
     }
 
+    final key = box.key != null ? _key(box.key!) : '';
     final child = box.child != null ? 'child=${_widget(box.child!)}' : '';
     final comma = size.isNotEmpty && child.isNotEmpty ? ',' : '';
-    return '[$clazz:$size$comma$child]';
+    return '[$clazz$key:$size$comma$child]';
   }
 
   String _textAlign(TextAlign? textAlign) =>
@@ -382,7 +440,9 @@ class Explainer {
     }
 
     final bg = style.background;
-    if (bg != null) s += 'bg=${_color(bg.color)}';
+    if (bg != null) {
+      s += 'bg=${_color(bg.color)}';
+    }
 
     final color = style.color;
     if (color != null && color != kColor) {
@@ -405,7 +465,9 @@ class Explainer {
     }
 
     final height = style.height;
-    if (height != null) s += '+height=${height.toStringAsFixed(1)}';
+    if (height != null) {
+      s += '+height=${height.toStringAsFixed(1)}';
+    }
 
     final fontSize = style.fontSize;
     if (fontSize != null && fontSize != parent.fontSize) {
@@ -430,7 +492,16 @@ class Explainer {
         ? ''
         : '${style.decorationStyle}'.replaceFirst(RegExp(r'^.+\.'), '/');
 
-    return "${styleHasIt ? '+' : '-'}$str$decorationStyle";
+    final decorationColor =
+        (style.decorationColor == null || style.decorationColor == style.color)
+            ? ''
+            : '/${_color(style.decorationColor!)}';
+
+    final decorationThickness = style.decorationThickness == null
+        ? ''
+        : '/${style.decorationThickness}';
+
+    return "${styleHasIt ? '+' : '-'}$str$decorationColor$decorationStyle$decorationThickness";
   }
 
   String _textStyleFontStyle(TextStyle style) {
@@ -454,52 +525,81 @@ class Explainer {
       return '';
     }
 
-    if (fontWeight == FontWeight.bold) return '+b';
-    return '+w' + FontWeight.values.indexOf(fontWeight).toString();
+    if (fontWeight == FontWeight.bold) {
+      return '+b';
+    }
+    return '+w${FontWeight.values.indexOf(fontWeight)}';
   }
 
   String _widget(Widget widget) {
     final explained = explainer?.call(this, widget);
-    if (explained != null) return explained;
+    if (explained != null) {
+      return explained;
+    }
 
-    if (widget == widget0) return '[widget0]';
+    if (widget == widget0) {
+      return '[widget0]';
+    }
 
-    if (widget is TshWidget) return _widget(widget.child);
+    if (widget.runtimeType.toString() == 'HtmlListMarker') {
+      return widget.toStringShort();
+    }
 
-    // ignore: invalid_use_of_protected_member
-    if (widget is WidgetPlaceholder) return _widget(widget.build(context));
+    if (widget is TshWidget) {
+      return _widget(widget.child);
+    }
 
-    if (widget is Image) return _image(widget);
+    if (widget is WidgetPlaceholder) {
+      return _widget(widget.build(context));
+    }
 
-    if (widget is SizedBox) return _sizedBox(widget);
+    if (widget is Image) {
+      return _image(widget);
+    }
+
+    if (widget is SizedBox) {
+      return _sizedBox(widget);
+    }
 
     final type = '${widget.runtimeType}';
-    var attr = <String>[];
+    final attr = <String>[];
 
     final maxLines = widget is RichText
         ? widget.maxLines
         : widget is Text
             ? widget.maxLines
             : null;
-    if (maxLines != null) attr.add('maxLines=$maxLines');
+    if (maxLines != null) {
+      attr.add('maxLines=$maxLines');
+    }
 
-    attr.add(_textAlign(widget is RichText
-        ? widget.textAlign
-        : (widget is Text ? widget.textAlign : null)));
+    attr.add(
+      _textAlign(
+        widget is RichText
+            ? widget.textAlign
+            : (widget is Text ? widget.textAlign : null),
+      ),
+    );
 
-    attr.add(_textDirection(widget is Column
-        ? widget.textDirection
-        : widget is RichText
+    attr.add(
+      _textDirection(
+        widget is Column
             ? widget.textDirection
-            : widget is Stack
+            : widget is RichText
                 ? widget.textDirection
-                : (widget is Text ? widget.textDirection : null)));
+                : (widget is Text ? widget.textDirection : null),
+      ),
+    );
 
-    attr.add(_textOverflow(widget is RichText
-        ? widget.overflow
-        : widget is Text
+    attr.add(
+      _textOverflow(
+        widget is RichText
             ? widget.overflow
-            : null));
+            : widget is Text
+                ? widget.overflow
+                : null,
+      ),
+    );
 
     if (widget is Align && widget is! Center) {
       attr.add(_alignment(widget.alignment));
@@ -509,55 +609,77 @@ class Explainer {
       attr.add('aspectRatio=${widget.aspectRatio.toStringAsFixed(1)}');
     }
 
-    if (widget is ConstrainedBox) attr.add(_boxConstraints(widget.constraints));
+    if (widget is ConstrainedBox) {
+      attr.add(_boxConstraints(widget.constraints));
+    }
 
-    if (widget is Container) attr.addAll(_boxDecoration(widget.decoration));
+    if (widget is Container) {
+      attr.addAll(_boxDecoration(widget.decoration));
+    }
 
-    if (widget is CssSizing) attr.addAll(_cssSizing(widget));
+    if (widget is CssSizing) {
+      attr.addAll(_cssSizing(widget));
+    }
 
-    if (widget is DecoratedBox) attr.addAll(_boxDecoration(widget.decoration));
+    if (widget is DecoratedBox) {
+      attr.addAll(_boxDecoration(widget.decoration));
+    }
 
-    if (widget is LimitedBox) attr.add(_limitBox(widget));
+    if (widget is LimitedBox) {
+      attr.add(_limitBox(widget));
+    }
 
-    if (widget is Padding) attr.add(_edgeInsets(widget.padding));
+    if (widget is Padding) {
+      attr.add(_edgeInsets(widget.padding));
+    }
 
     if (widget is Positioned) {
-      attr.add('(${widget.top},${widget.right},'
-          '${widget.bottom},${widget.left})');
+      attr.add(
+        '(${widget.top},${widget.right},'
+        '${widget.bottom},${widget.left})',
+      );
     }
 
-    if (widget is SizedBox) {
-      attr.add('${widget.width ?? 0.0}x'
-          '${widget.height ?? 0.0}');
+    if (widget is Tooltip) {
+      attr.add('message=${widget.message}');
     }
-
-    if (widget is Tooltip) attr.add('message=${widget.message}');
 
     // A-F
     // `RichText` is an exception, it is a `MultiChildRenderObjectWidget` so it has to be processed first
-    attr.add(widget is RichText
-        ? _inlineSpan(widget.text)
-        : widget is Container
-            ? _widgetChild(widget.child)
-            : '');
+    attr.add(
+      widget is RichText
+          ? _inlineSpan(widget.text)
+          : widget is Container
+              ? _widgetChild(widget.child)
+              : '',
+    );
     // G-M
-    attr.add(widget is GestureDetector
-        ? _widgetChild(widget.child)
-        : widget is MultiChildRenderObjectWidget
-            ? (widget is! RichText ? _widgetChildren(widget.children) : '')
-            : '');
+    attr.add(
+      widget is GestureDetector
+          ? _widgetChild(widget.child)
+          : widget is MouseRegion
+              ? _widgetChild(widget.child)
+              : widget is MultiChildRenderObjectWidget
+                  ? (widget is! RichText
+                      ? _widgetChildren(widget.children)
+                      : '')
+                  : '',
+    );
+
     // N-T
-    attr.add(widget is ProxyWidget
-        ? _widgetChild(widget.child)
-        : widget is SingleChildRenderObjectWidget
-            ? _widgetChild(widget.child)
-            : widget is SingleChildScrollView
-                ? _widgetChild(widget.child)
-                : widget is Text
-                    ? widget.data!
-                    : widget is Tooltip
-                        ? _widgetChild(widget.child)
-                        : '');
+    attr.add(
+      widget is ProxyWidget
+          ? _widgetChild(widget.child)
+          : widget is SingleChildRenderObjectWidget
+              ? _widgetChild(widget.child)
+              : widget is SingleChildScrollView
+                  ? _widgetChild(widget.child)
+                  : widget is Text
+                      ? widget.data!
+                      : widget is Tooltip
+                          ? _widgetChild(widget.child)
+                          : '',
+    );
     // U-Z
 
     final attrStr = attr.where((a) => a.isNotEmpty).join(',');
@@ -569,4 +691,50 @@ class Explainer {
 
   String _widgetChildren(Iterable<Widget> widgets) =>
       widgets.isNotEmpty ? 'children=${widgets.map(_widget).join(',')}' : '';
+}
+
+class HitTestApp extends StatelessWidget {
+  final String html;
+  final List<String> list;
+
+  const HitTestApp({required this.html, Key? key, required this.list})
+      : super(key: key);
+
+  @override
+  Widget build(BuildContext _) => MaterialApp(
+        home: Scaffold(
+          body: HtmlWidget(
+            html,
+            onTapUrl: (url) {
+              list.add(url);
+              return true;
+            },
+          ),
+        ),
+      );
+}
+
+class _RichTextFinder extends MatchFinder {
+  final String data;
+
+  _RichTextFinder(this.data) : super(skipOffstage: true);
+
+  @override
+  String get description => 'RichText "$data"';
+
+  @override
+  bool matches(Element candidate) {
+    final Widget widget = candidate.widget;
+
+    if (widget is RichText) {
+      final text = widget.text;
+      if (text is TextSpan) {
+        if (text.toPlainText() == data) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
 }

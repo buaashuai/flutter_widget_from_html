@@ -1,23 +1,87 @@
-## 0.6.0-rc.2021031201
+## 0.8.2
 
-- Dispose recognizer properly (#466)
+- Optimize `HtmlListMarker` (#623)
+- Fix leading and trailing whitespace within `PRE` being trimmed (#624)
 
-## 0.6.0-rc.2021030401
+## 0.8.1
 
-- Requires Flutter 2
-- Implement new package `fwfh_chewie` (#461)
-- Implement new package `fwfh_cached_network_image` (#463)
+- Mark enhanced `HtmlWidget.webViewXxx` properties as deprecated (#614)
+- Add support for `ListView` and `SliverList` constructor params (#616)
 
-## 0.6.0-rc.2021030201
+## 0.8.0
 
-- Add support for anchor in core package (#447)
-- Implement new package `fwfh_webview` (#448)
-- Implement new package `fwfh_url_launcher` (#450)
-- Implement new package `fwfh_svg` (#452)
+- Update for Flutter 2.5 (#587)
+- BREAKING: Change `WidgetBit.inline` default alignment → bottom (#598)
+- BREAKING: Remove `BuildMetadata.willBuildSubtree` (#607)
+- BREAKING: Remove `BuildTree.replaceWith` (#607)
+- BREAKING: Remove `WidgetFactory.buildBorder` (#608)
+- Add support for `DETAILS` tag (#593)
+- Add support for `BuildOp.onTreeFlattening` (#607)
+- Add support for `display: inline-block` (#607)
+- Add support for `border-radius` (#608)
+- Fix bug extra space because of colspan (#600)
+- Fix bug render loop when TABLE's baseline is needed (#604)
 
-## 0.6.0-rc.2021022601
+## 0.7.0
 
+- Flutter 2.2
+- BREAKING: Remove `HtmlWidget.buildAsyncBuilder` (#575)
+- BREAKING: Remove `HtmlWidget.hyperlinkColor` (#571)
+- BREAKING: Change `HtmlWidget.onTapUrl` signature to return a `FutureOr<bool>`. (#563)
+- Show click cursor for `A` tag (#322)
+- Add support for `HtmlWidget.renderMode` (#484)
+- Improve `text-decoration` support (#569)
+- Add support for `HtmlWidgetState.scrollToAnchor` (#577)
+- Implement `HtmlWidget.onErrorBuilder` and `onLoadingBuilder` (#575)
+- Fix bug border+background (#516)
+- Fix incorrect UL/OL tag closing
+- Fix `CssSizingValue` equality check
+- Fix missing block margins on empty tag (#580)
+
+This release includes some changes that may require migration if you have a custom `WidgetFactory`:
+
+- Remove `TextStyleHtml.maxLines` and `.textOverflow` (#570)
+- Remove `WidgetFactory.buildColumnPlaceholder` param `trimMarginVertical`
+- Remove `WidgetFactory.buildColumnWidget` param `tsh`
+- Change `WidgetFactory.buildImageWidget` params
+- Replace `WidgetFactory.getListStyleMarker` with `getListMarkerText`
+- Remove `WidgetFactory.imageLoadingBuilder` and `imageErrorBuilder` (#575)
+- Replace `WidgetFactory.onTapAnchor` param `anchorContext` with `scrollTo`
+
+## 0.6.2
+
+- Restore `computeLineMetrics` usage in Flutter web. (#561)
+
+## 0.6.1+4
+
+- Improve whitespace handling (#551)
+
+## 0.6.1+3
+
+- Fix bug padding+background+h2 (#523)
+- Fix `min-width` being ignored (#544)
+
+## 0.6.1+1
+
+- Fix negative margin/padding throwing exception (#510)
+
+## 0.6.1
+
+- Add support for white-space inline style (#483)
+- Change onTapUrl signature to accept a returning value (#499)
+- Fix `_ListMarkerRenderObject` invalid size
+- Fix anchor bugs (#485, #491, #493 and #500)
+- Fix TR display: none is still being rendered (#489)
+- Fix empty TD being skipped -> incorrect table layout (#503)
+
+## 0.6.0
+
+- Flutter 2 🚀
+- Use csslib to parse inline style (#379)
+- Implement `computeDryLayout` (#411)
 - Migrate to null safety (#436, authored by @miDeb)
+- Add support for anchor (#447)
+- Dispose recognizer properly (#466)
 
 ## 0.5.2+1
 

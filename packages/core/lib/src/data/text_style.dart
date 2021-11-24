@@ -5,12 +5,6 @@ part of '../core_data.dart';
 class TextStyleHtml {
   final Iterable<dynamic> _deps;
 
-  /// The line height.
-  final double? height;
-
-  /// The number of max lines that should be rendered.
-  final int? maxLines;
-
   /// The parent style.
   final TextStyleHtml? parent;
 
@@ -23,23 +17,22 @@ class TextStyleHtml {
   /// The text direction.
   final TextDirection textDirection;
 
-  /// The overflow behavior.
-  final TextOverflow? textOverflow;
+  /// The whitespace behavior.
+  final CssWhitespace whitespace;
 
-  TextStyleHtml._({
+  const TextStyleHtml._({
     required Iterable<dynamic> deps,
-    this.height,
-    this.maxLines,
     this.parent,
     required this.style,
     this.textAlign,
     required this.textDirection,
-    this.textOverflow,
+    required this.whitespace,
   }) : _deps = deps;
 
   /// Creates the root text style.
   factory TextStyleHtml.root(Iterable<dynamic> deps, TextStyle? widgetStyle) {
     var style = _getDependency<TextStyle>(deps);
+    style = FwfhTextStyle.from(style);
     if (widgetStyle != null) {
       style = widgetStyle.inherit ? style.merge(widgetStyle) : widgetStyle;
     }
@@ -55,37 +48,33 @@ class TextStyleHtml {
       deps: deps,
       style: style,
       textDirection: _getDependency<TextDirection>(deps),
+      whitespace: CssWhitespace.normal,
     );
   }
 
-  /// Returns a [TextStyle] merged from [style] and [height].
-  ///
-  /// This needs to be done because
-  /// `TextStyle` with existing height cannot be copied with `height=null`.
-  /// See [flutter/flutter#58765](https://github.com/flutter/flutter/issues/58765).
-  TextStyle get styleWithHeight =>
-      height != null && height! >= 0 ? style.copyWith(height: height) : style;
-
   /// Creates a copy with the given fields replaced with the new values.
   TextStyleHtml copyWith({
-    double? height,
-    int? maxLines,
     TextStyleHtml? parent,
     TextStyle? style,
     TextAlign? textAlign,
     TextDirection? textDirection,
-    TextOverflow? textOverflow,
-  }) =>
-      TextStyleHtml._(
-        deps: _deps,
-        height: height ?? this.height,
-        maxLines: maxLines ?? this.maxLines,
-        parent: parent ?? this.parent,
-        style: style ?? this.style,
-        textAlign: textAlign ?? this.textAlign,
-        textDirection: textDirection ?? this.textDirection,
-        textOverflow: textOverflow ?? this.textOverflow,
-      );
+    CssWhitespace? whitespace,
+  }) {
+    assert(
+      style is FwfhTextStyle?,
+      'The text style should be modified by calling methods of the existing instance: '
+      'apply(), copyWith() or merge().',
+    );
+
+    return TextStyleHtml._(
+      deps: _deps,
+      parent: parent ?? this.parent,
+      style: style ?? this.style,
+      textAlign: textAlign ?? this.textAlign,
+      textDirection: textDirection ?? this.textDirection,
+      whitespace: whitespace ?? this.whitespace,
+    );
+  }
 
   /// Gets dependency value by type.
   ///
@@ -135,14 +124,21 @@ class TextStyleBuilder<T1> {
       _output = null;
     }
 
-    if (_output != null) return _output!;
-    if (_builders == null) return _output = _parentOutput!;
+    if (_output != null) {
+      return _output!;
+    }
+
+    if (_builders == null) {
+      // TODO: remove lint ignore
+      // ignore: unnecessary_null_checks
+      return _output = _parentOutput!;
+    }
 
     _output = _parentOutput?.copyWith(parent: _parentOutput);
     final l = _builders!.length;
     for (var i = 0; i < l; i++) {
       final builder = _builders![i];
-      _output = builder(_output, _inputs![i]);
+      _output = builder(_output, _inputs![i]) as TextStyleHtml;
       assert(_output?.parent == _parentOutput);
     }
 
@@ -151,7 +147,9 @@ class TextStyleBuilder<T1> {
 
   /// Returns `true` if this shares same styling with [other].
   bool hasSameStyleWith(TextStyleBuilder? other) {
-    if (other == null) return false;
+    if (other == null) {
+      return false;
+    }
     TextStyleBuilder thisWithBuilder = this;
     while (thisWithBuilder._builders == null) {
       final thisParent = thisWithBuilder.parent;
@@ -180,5 +178,5 @@ class TextStyleBuilder<T1> {
 
   @override
   String toString() =>
-      'tsb#$hashCode' + (parent != null ? '(parent=#${parent.hashCode})' : '');
+      'tsb#$hashCode${parent != null ? '(parent=#${parent.hashCode})' : ''}';
 }

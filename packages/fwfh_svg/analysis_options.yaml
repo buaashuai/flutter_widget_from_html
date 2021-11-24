@@ -1,1 +1,10 @@
-include: package:pedantic/analysis_options.yaml
+include: package:lint/analysis_options_package.yaml
+
+analyzer:
+  errors:
+    todo: info
+
+linter:
+  rules:
+    always_put_control_body_on_new_line: true
+    missing_whitespace_between_adjacent_strings: false

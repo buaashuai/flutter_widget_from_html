@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_widget_from_html_core/flutter_widget_from_html_core.dart';
 
@@ -31,24 +32,38 @@ class TagVideo {
 
   void onChild(BuildMetadata childMeta) {
     final e = childMeta.element;
-    if (e.localName != kTagVideoSource) return;
-    if (e.parent != videoMeta.element) return;
+    if (e.localName != kTagVideoSource) {
+      return;
+    }
+    if (e.parent != videoMeta.element) {
+      return;
+    }
 
     final attrs = e.attributes;
     final url = wf.urlFull(attrs[kAttributeVideoSrc] ?? '');
-    if (url == null) return;
+    if (url == null) {
+      return;
+    }
 
     _sourceUrls.add(url);
   }
 
   Iterable<Widget>? onWidgets(BuildMetadata _, Iterable<WidgetPlaceholder> ws) {
-    final player = _buildPlayer();
-    if (player == null) return ws;
-    return [player];
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        !kIsWeb) {
+      // these are the chewie's supported platforms
+      // https://pub.dev/packages/chewie/versions/1.2.2
+      return ws;
+    }
+
+    return listOrNull(_buildPlayer()) ?? ws;
   }
 
   Widget? _buildPlayer() {
-    if (_sourceUrls.isEmpty) return null;
+    if (_sourceUrls.isEmpty) {
+      return null;
+    }
 
     final attrs = videoMeta.element.attributes;
     return wf.buildVideoPlayer(

@@ -6,7 +6,7 @@ environment:
   sdk: ">=2.6.0 <3.0.0"
 
 dependencies:
-  carousel_slider: ^2.2.1
+  carousel_slider: ^4.0.0
   flutter:
     sdk: flutter
   flutter_widget_from_html: any
@@ -22,6 +22,9 @@ dependencies:
   url_launcher: any
 
 dependency_overrides:
+  archive: ^3.0.0
+  crypto: ^3.0.0
+  file: ^6.0.0
   flutter_widget_from_html:
     path: ../packages/enhanced
   flutter_widget_from_html_core:
@@ -30,15 +33,16 @@ dependency_overrides:
     path: ../packages/fwfh_cached_network_image
   fwfh_chewie:
     path: ../packages/fwfh_chewie
+  fwfh_just_audio:
+    path: ../packages/fwfh_just_audio
   fwfh_svg:
     path: ../packages/fwfh_svg
+  fwfh_text_style:
+    path: ../packages/fwfh_text_style
   fwfh_url_launcher:
     path: ../packages/fwfh_url_launcher
   fwfh_webview:
     path: ../packages/fwfh_webview
-  archive: ^3.0.0
-  crypto: ^3.0.0
-  file: ^6.0.0
   uuid: ^3.0.0
 
 dev_dependencies:
@@ -46,8 +50,8 @@ dev_dependencies:
     sdk: flutter
   flutter_test:
     sdk: flutter
-  golden_toolkit: any
-  pedantic: any
+  golden_toolkit: ^0.11.0
+  lint: any
   test: any
 
 flutter:

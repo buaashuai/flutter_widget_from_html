@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:csslib/visitor.dart' as css;
 import 'package:flutter/gestures.dart';
@@ -13,6 +13,7 @@ import '../core_widget_factory.dart';
 import 'core_parser.dart';
 import 'margin_vertical.dart';
 
+part 'ops/anchor.dart';
 part 'ops/column.dart';
 part 'ops/style_bg_color.dart';
 part 'ops/style_border.dart';
@@ -20,8 +21,11 @@ part 'ops/style_margin.dart';
 part 'ops/style_padding.dart';
 part 'ops/style_sizing.dart';
 part 'ops/style_text_align.dart';
+part 'ops/style_text_decoration.dart';
 part 'ops/style_vertical_align.dart';
 part 'ops/tag_a.dart';
+part 'ops/tag_br.dart';
+part 'ops/tag_details.dart';
 part 'ops/tag_img.dart';
 part 'ops/tag_li.dart';
 part 'ops/tag_q.dart';
@@ -50,20 +54,22 @@ const kCssDisplayInline = 'inline';
 const kCssDisplayInlineBlock = 'inline-block';
 const kCssDisplayNone = 'none';
 
-const kCssMaxLines = 'max-lines';
-const kCssMaxLinesNone = 'none';
-const kCssMaxLinesWebkitLineClamp = '-webkit-line-clamp';
-
-const kCssTextOverflow = 'text-overflow';
-const kCssTextOverflowClip = 'clip';
-const kCssTextOverflowEllipsis = 'ellipsis';
+const kCssWhitespace = 'white-space';
+const kCssWhitespacePre = 'pre';
+const kCssWhitespaceNormal = 'normal';
 
 void wrapTree(
   BuildTree tree, {
   BuildBit Function(BuildTree parent)? append,
   BuildBit Function(BuildTree parent)? prepend,
 }) {
-  if (tree.isEmpty) {
+  final children = tree.directChildren;
+  final first0 = children.isEmpty ? null : children.first;
+  final first = (first0 is BuildTree ? first0.first : null) ?? first0;
+  final last0 = children.isEmpty ? null : children.last;
+  final last = (last0 is BuildTree ? last0.last : null) ?? last0;
+
+  if (first == null || last == null) {
     if (prepend != null) {
       final prependBit = prepend(tree);
       tree.add(prependBit);
@@ -76,12 +82,21 @@ void wrapTree(
   }
 
   if (prepend != null) {
-    final first = tree.first!;
     prepend(first.parent!).insertBefore(first);
   }
 
   if (append != null) {
-    final last = tree.last!;
     append(last.parent!).insertAfter(last);
   }
+}
+
+extension RichTextMetadata on BuildMetadata {
+  static final _maxLines = Expando<int>();
+  static final _overflow = Expando<TextOverflow>();
+
+  int get maxLines => _maxLines[this] ?? -1;
+  set maxLines(int value) => _maxLines[this] = value;
+
+  TextOverflow get overflow => _overflow[this] ?? TextOverflow.clip;
+  set overflow(TextOverflow value) => _overflow[this] = value;
 }

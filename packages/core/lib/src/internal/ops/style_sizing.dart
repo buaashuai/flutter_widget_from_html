@@ -10,15 +10,17 @@ const kCssWidth = 'width';
 class DisplayBlockOp extends BuildOp {
   DisplayBlockOp(WidgetFactory wf)
       : super(
-          onWidgets: (meta, widgets) => listOrNull(wf
-              .buildColumnPlaceholder(meta, widgets)
-              ?.wrapWith((_, w) => w is CssSizing ? w : CssBlock(child: w))),
-          priority: StyleSizing.kPriority5k + 1,
+          onWidgets: (meta, widgets) => listOrNull(
+            wf
+                .buildColumnPlaceholder(meta, widgets)
+                ?.wrapWith((_, w) => w is CssSizing ? w : CssBlock(child: w)),
+          ),
+          priority: StyleSizing.kPriority7k + 1,
         );
 }
 
 class StyleSizing {
-  static const kPriority5k = 5000;
+  static const kPriority7k = 7000;
 
   final WidgetFactory wf;
 
@@ -27,16 +29,18 @@ class StyleSizing {
   StyleSizing(this.wf);
 
   BuildOp get buildOp => BuildOp(
-        onTree: (meta, tree) {
-          if (meta.willBuildSubtree == true) return;
-
+        onTreeFlattening: (meta, tree) {
           final input = _parse(meta);
-          if (input == null) return;
+          if (input == null) {
+            return;
+          }
 
           WidgetPlaceholder? widget;
           for (final b in tree.bits) {
             if (b is WidgetBit) {
-              if (widget != null) return;
+              if (widget != null) {
+                return;
+              }
               widget = b.child;
             } else {
               return;
@@ -46,26 +50,35 @@ class StyleSizing {
           widget?.wrapWith((c, w) => _build(c, w, input, meta.tsb));
         },
         onWidgets: (meta, widgets) {
-          if (meta.willBuildSubtree == false) return widgets;
-
           final input = _parse(meta);
-          if (input == null) return widgets;
-          return listOrNull(wf
-              .buildColumnPlaceholder(meta, widgets)
-              ?.wrapWith((c, w) => _build(c, w, input, meta.tsb)));
+          if (input == null) {
+            return widgets;
+          }
+
+          return listOrNull(
+            wf
+                .buildColumnPlaceholder(meta, widgets)
+                ?.wrapWith((c, w) => _build(c, w, input, meta.tsb)),
+          );
         },
         onWidgetsIsOptional: true,
-        priority: kPriority5k,
+        priority: kPriority7k,
       );
 
   _StyleSizingInput? _parse(BuildMetadata meta) {
-    CssLength? maxHeight, maxWidth, minHeight, minWidth;
+    CssLength? maxHeight;
+    CssLength? maxWidth;
+    CssLength? minHeight;
+    CssLength? minWidth;
     Axis? preferredAxis;
-    CssLength? preferredHeight, preferredWidth;
+    CssLength? preferredHeight;
+    CssLength? preferredWidth;
 
     for (final style in meta.styles) {
       final value = style.value;
-      if (value == null) continue;
+      if (value == null) {
+        continue;
+      }
 
       switch (style.property) {
         case kCssHeight:
@@ -106,7 +119,9 @@ class StyleSizing {
         minHeight == null &&
         minWidth == null &&
         preferredHeight == null &&
-        preferredWidth == null) return null;
+        preferredWidth == null) {
+      return null;
+    }
 
     if (preferredWidth == null &&
         meta.buildOps.whereType<DisplayBlockOp>().isNotEmpty) {
@@ -131,8 +146,12 @@ class StyleSizing {
   static void treatHeightAsMinHeight(BuildMetadata meta) =>
       _treatHeightAsMinHeight[meta] = true;
 
-  static Widget _build(BuildContext context, Widget child,
-      _StyleSizingInput input, TextStyleBuilder tsb) {
+  static Widget _build(
+    BuildContext context,
+    Widget child,
+    _StyleSizingInput input,
+    TextStyleBuilder tsb,
+  ) {
     final tsh = tsb.build(context);
 
     return CssSizing(
@@ -148,14 +167,18 @@ class StyleSizing {
   }
 
   static CssSizingValue? _getValue(CssLength? length, TextStyleHtml tsh) {
-    if (length == null) return null;
+    if (length == null) {
+      return null;
+    }
 
     final value = length.getValue(tsh);
-    if (value != null) return CssSizingValue.value(value);
+    if (value != null) {
+      return CssSizingValue.value(value);
+    }
 
     switch (length.unit) {
       case CssLengthUnit.auto:
-        return CssSizingValue.auto();
+        return const CssSizingValue.auto();
       case CssLengthUnit.percentage:
         return CssSizingValue.percentage(length.number);
       default:
@@ -174,7 +197,7 @@ class _StyleSizingInput {
   final CssLength? preferredHeight;
   final CssLength? preferredWidth;
 
-  _StyleSizingInput({
+  const _StyleSizingInput({
     this.maxHeight,
     this.maxWidth,
     this.minHeight,

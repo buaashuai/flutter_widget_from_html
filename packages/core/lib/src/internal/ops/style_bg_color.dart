@@ -9,11 +9,11 @@ class StyleBgColor {
   StyleBgColor(this.wf);
 
   BuildOp get buildOp => BuildOp(
-        onTree: (meta, tree) {
-          if (meta.willBuildSubtree == true) return;
-
+        onTreeFlattening: (meta, tree) {
           final bgColor = _parseColor(wf, meta);
-          if (bgColor == null) return;
+          if (bgColor == null) {
+            return;
+          }
 
           for (final bit in tree.bits) {
             bit.tsb.enqueue(_tsb, bgColor);
@@ -21,12 +21,18 @@ class StyleBgColor {
         },
         onWidgets: (meta, widgets) {
           final color = _parseColor(wf, meta);
-          if (color == null) return null;
-          return listOrNull(wf.buildColumnPlaceholder(meta, widgets)?.wrapWith(
-              (_, child) => wf.buildDecoratedBox(meta, child, color: color)));
+          if (color == null) {
+            return null;
+          }
+
+          return listOrNull(
+            wf.buildColumnPlaceholder(meta, widgets)?.wrapWith(
+                  (_, child) => wf.buildDecoration(meta, child, color: color),
+                ),
+          );
         },
         onWidgetsIsOptional: true,
-        priority: 4900,
+        priority: StyleBorder.kPriorityBoxModel5k + 1,
       );
 
   Color? _parseColor(WidgetFactory wf, BuildMetadata meta) {

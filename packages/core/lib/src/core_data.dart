@@ -1,5 +1,6 @@
 import 'package:csslib/visitor.dart' as css;
 import 'package:flutter/widgets.dart';
+import 'package:fwfh_text_style/fwfh_text_style.dart';
 import 'package:html/dom.dart' as dom;
 
 import 'core_helpers.dart';
@@ -12,7 +13,7 @@ part 'data/text_style.dart';
 
 /// A building element metadata.
 abstract class BuildMetadata {
-  /// The associatd element.
+  /// The associated element.
   final dom.Element element;
 
   /// The associated [TextStyleBuilder].
@@ -36,23 +37,15 @@ abstract class BuildMetadata {
   /// - Attribute `style` of [domElement]
   List<css.Declaration> get styles;
 
-  /// Returns `true` if subtree will be built.
-  ///
-  /// May returns `null` if metadata is still being collected.
-  /// There are a few things that may trigger subtree building:
-  /// - Some [BuildOp] has a mandatory `onWidgets` callback
-  /// - Inline style `display: block`
-  ///
-  /// See [BuildOp.onWidgetsIsOptional].
-  bool? get willBuildSubtree;
-
   /// Adds an inline style.
-  operator []=(String key, String value);
+  void operator []=(String key, String value);
 
   /// Gets a styling declaration by `property`.
   css.Declaration? operator [](String key) {
     for (final style in styles.reversed) {
-      if (style.property == key) return style;
+      if (style.property == key) {
+        return style;
+      }
     }
     return null;
   }
@@ -111,11 +104,16 @@ class BuildOp {
   /// The callback that will be called when child elements have been processed.
   final void Function(BuildMetadata meta, BuildTree tree)? onTree;
 
+  /// The callback that will be called before flattening.
+  final void Function(BuildMetadata meta, BuildTree tree)? onTreeFlattening;
+
   /// The callback that will be called when child elements have been built.
   ///
   /// Note: only works if it's a block element.
   final Iterable<Widget>? Function(
-      BuildMetadata meta, Iterable<WidgetPlaceholder> widgets)? onWidgets;
+    BuildMetadata meta,
+    Iterable<WidgetPlaceholder> widgets,
+  )? onWidgets;
 
   /// Controls whether the element should be forced to be rendered as block.
   ///
@@ -123,10 +121,11 @@ class BuildOp {
   final bool onWidgetsIsOptional;
 
   /// Creates a build op.
-  BuildOp({
+  const BuildOp({
     this.defaultStyles,
     this.onChild,
     this.onTree,
+    this.onTreeFlattening,
     this.onWidgets,
     this.onWidgetsIsOptional = false,
     this.priority = 10,
